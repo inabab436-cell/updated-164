@@ -1776,7 +1776,34 @@ export const Route = createFileRoute("/api/chat-ai")({
           // moves to a covered area, everything already given is read back for
           // one confirmation instead of being asked for again.
           // ------------------------------------------------------------------
+          // ------------------------------------------------------------------
+          // CONVERSATIONAL NAME ≠ ORDER OWNER NAME
+          // A name given in the opening chit-chat ("أنا محمد") is only there so
+          // the agent knows who it is talking to (and the gender of the
+          // wording). It is NOT order data, so the full-name rule must not fire
+          // for it and must not drag the conversation into order intake.
+          // The full-name correction is therefore only applied once the order
+          // itself is genuinely under way: another order field has arrived
+          // (phone / address) or an order already exists in this conversation.
+          // ------------------------------------------------------------------
           let identityBlockForTurn = identityIntakeBlock;
+          {
+            const orderFlowStarted = Boolean(
+              conversationOrderRows.length ||
+                turnProfile?.phone ||
+                turnProfile?.address ||
+                customer?.phone ||
+                customer?.address ||
+                (turnPhone?.phone ?? null),
+            );
+            if (!orderFlowStarted) {
+              const withoutName = identityIssues.filter((i) => i.field !== "name");
+              if (withoutName.length !== identityIssues.length) {
+                const { buildIdentityIntakeBlock } = await import("@/lib/identity-intake");
+                identityBlockForTurn = buildIdentityIntakeBlock(withoutName);
+              }
+            }
+          }
           let shippingPriorityBlock = "";
           try {
             const { resolveShippingCoverage } = await import("@/lib/shipping-lookup.server");
